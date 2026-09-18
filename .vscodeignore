@@ -1,0 +1,10 @@
+.git/**
+src/**
+test/**
+scripts/**
+out/test/**
+out/**/*.map
+dist/**
+*.vsix
+CONTRIBUTING.md
+.github/**

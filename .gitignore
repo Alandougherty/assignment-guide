@@ -1,0 +1,23 @@
+# Dependencies and generated output
+node_modules/
+out/
+dist/
+*.vsix
+.vscode-test/
+*.tsbuildinfo
+coverage/
+__pycache__/
+*.py[cod]
+.venv/
+
+# Local credentials and runtime data
+.env
+.env.*
+!.env.example
+*.log
+.local/
+
+# Worktrees, scratch and OS files
+.worktrees/
+.superpowers/
+.DS_Store

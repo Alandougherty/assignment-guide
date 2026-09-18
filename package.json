@@ -1,0 +1,86 @@
+{
+  "name": "assignment-guide",
+  "displayName": "Assignment Guide",
+  "description": "Understand your assignment. Develop your own solution. Step-by-step guidance for your coursework in VS Code.",
+  "version": "0.18.1",
+  "private": true,
+  "publisher": "alandougherty",
+  "engines": {
+    "vscode": "^1.106.0"
+  },
+  "main": "./out/src/student.js",
+  "activationEvents": [
+    "onCommand:assignmentTutorV2.open",
+    "onView:assignmentTutorV2.chat",
+    "onStartupFinished"
+  ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": false
+    },
+    "virtualWorkspaces": false
+  },
+  "contributes": {
+    "commands": [
+      {
+        "command": "assignmentTutorV2.toggleDiagnostics",
+        "title": "Assignment Guide: Toggle diagnostics"
+      },
+      {
+        "command": "assignmentTutorV2.open",
+        "title": "Assignment Guide: Open"
+      },
+      {
+        "command": "assignmentTutorV2.restart",
+        "title": "Assignment Guide: Restart Session"
+      },
+      {
+        "command": "assignmentTutorV2.connect",
+        "title": "Assignment Guide: Connect to Your Course"
+      }
+    ],
+    "viewsContainers": {
+      "secondarySidebar": [
+        {
+          "id": "assignmentTutorV2-secondary",
+          "title": "Assignment Guide",
+          "icon": "media/tutor.svg"
+        }
+      ]
+    },
+    "views": {
+      "assignmentTutorV2-secondary": [
+        {
+          "type": "webview",
+          "id": "assignmentTutorV2.chat",
+          "name": "Assignment Guide"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p .",
+    "test": "npm run compile && node --test out/test/*.test.js",
+    "check": "tsc -p . --noEmit",
+    "package": "npm run compile && node scripts/package-student.cjs"
+  },
+  "devDependencies": {
+    "@types/node": "20.17.0",
+    "@types/vscode": "1.91.0",
+    "@vscode/vsce": "3.9.2",
+    "typescript": "5.6.3"
+  },
+  "dependencies": {
+    "markdown-it": "15.0.1",
+    "proper-lockfile": "4.1.2"
+  },
+  "license": "SEE LICENSE IN LICENSE",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Alandougherty/assignment-guide.git"
+  },
+  "homepage": "https://github.com/Alandougherty/assignment-guide",
+  "bugs": {
+    "url": "https://github.com/Alandougherty/assignment-guide/issues"
+  }
+}

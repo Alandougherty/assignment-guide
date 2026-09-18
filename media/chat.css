@@ -1,0 +1,61 @@
+:root { color-scheme: light dark; }
+body { margin: 0; padding: 12px; color: var(--vscode-foreground); background: var(--vscode-editor-background); font: 14px/1.6 var(--vscode-font-family); }
+[hidden] { display: none !important; }
+h1 { font-size: 24px; } h2 { font-size: 18px; } h3 { font-size: 15px; }
+.banner { padding: 12px; border: 1px solid var(--vscode-focusBorder); }
+#history { display: flex; flex-direction: column; gap: 24px; margin: 20px 0; }
+#history article { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.chat-bubble { box-sizing: border-box; min-width: 0; padding: 12px 14px; border: 1px solid var(--vscode-panel-border, var(--vscode-contrastBorder, transparent)); border-radius: 14px; overflow-wrap: anywhere; }
+.chat-bubble h3 { margin: 0 0 6px; font-size: 12px; font-weight: 600; color: var(--vscode-descriptionForeground); }
+.student-bubble { align-self: flex-end; max-width: 90%; background: var(--vscode-input-background, var(--vscode-editor-background)); color: var(--vscode-input-foreground, var(--vscode-foreground)); border-bottom-right-radius: 4px; }
+.student-question { margin: 0; white-space: pre-wrap; }
+.tutor-bubble { align-self: flex-start; width: 96%; background: var(--vscode-sideBar-background, var(--vscode-editor-background)); border-bottom-left-radius: 4px; }
+.chat-bubble > :last-child { margin-bottom: 0; }
+.edit-error:empty { display: none; }
+body.vscode-high-contrast .chat-bubble, body.vscode-high-contrast-light .chat-bubble { border-color: var(--vscode-contrastBorder, var(--vscode-foreground)); }
+@media (max-width: 300px) { .chat-bubble { padding: 10px; } .student-bubble { max-width: 95%; } .tutor-bubble { width: 100%; } }
+pre { white-space: pre-wrap; overflow-wrap: anywhere; font-family: var(--vscode-editor-font-family); }
+textarea { display: block; width: 100%; box-sizing: border-box; margin: 8px 0; }
+textarea, select { color: var(--vscode-input-foreground); background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border, grey); padding: 8px; font: inherit; }
+button { color: var(--vscode-button-foreground); background: var(--vscode-button-background); padding: 8px 12px; border: 0; margin: 4px; cursor: pointer; }
+button:disabled { opacity: .5; cursor: default; }
+details { margin: 12px 0; } label { display: block; } #error, .edit-error { color: var(--vscode-errorForeground); }
+
+body { overflow-x: hidden; } button { max-width: 100%; white-space: normal; } select { max-width: 100%; } pre { font-size: 12px; }
+
+#thinking { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-left: 2px solid var(--vscode-focusBorder); }
+.thinking-dots { display: inline-flex; gap: 4px; flex-shrink: 0; }
+.thinking-dots span { width: 5px; height: 5px; border-radius: 50%; background: var(--vscode-foreground); animation: thinking-pulse 1.2s ease-in-out infinite; }
+.thinking-dots span:nth-child(2) { animation-delay: .15s; }
+.thinking-dots span:nth-child(3) { animation-delay: .3s; }
+@keyframes thinking-pulse { 0%, 80%, 100% { opacity: .3; } 40% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .thinking-dots span { animation: none; opacity: .7; } }
+
+.tutor-reply { overflow-wrap: anywhere; }
+.tutor-reply > :first-child { margin-top: 0; }
+.tutor-reply > :last-child { margin-bottom: 0; }
+.tutor-reply code { font-family: var(--vscode-editor-font-family); background: var(--vscode-textCodeBlock-background); }
+.tutor-reply pre { padding: 10px; background: var(--vscode-textCodeBlock-background); }
+.tutor-reply blockquote { margin-left: 0; padding-left: 12px; border-left: 3px solid var(--vscode-textBlockQuote-border); }
+.tutor-reply table { display: block; max-width: 100%; overflow-x: auto; border-collapse: collapse; }
+.tutor-reply th, .tutor-reply td { border: 1px solid var(--vscode-panel-border); padding: 4px 8px; }
+.tutor-reply a { color: var(--vscode-textLink-foreground); }
+#prompt-hint { display: block; color: var(--vscode-descriptionForeground); }
+
+#saving-status { display: block; min-height: 1.6em; color: var(--vscode-descriptionForeground); }
+.submission-details > summary { font-size: 12px; color: var(--vscode-descriptionForeground); cursor: pointer; }
+
+.export-toolbar { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; gap: 8px; padding: 8px 0; background: var(--vscode-editor-background); }
+#export-status { font-size: 12px; color: var(--vscode-descriptionForeground); }
+
+#identity-copy, #course-info, #service-notice { white-space: pre-wrap; overflow-wrap: anywhere; }
+#notice-details > summary { cursor: pointer; }
+
+#conversation-loading { display: flex; align-items: center; gap: 8px; color: var(--vscode-descriptionForeground); }
+.conversation-spinner { width: 12px; height: 12px; border: 2px solid var(--vscode-descriptionForeground); border-right-color: transparent; border-radius: 50%; animation: conversation-spin 1s linear infinite; }
+@keyframes conversation-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .conversation-spinner { animation: none; } }
+
+.composer-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; }
+.request-buttons { display: flex; flex-wrap: wrap; max-width: 100%; }
+#token-allowance { color: var(--vscode-descriptionForeground); max-width: 100%; overflow-wrap: anywhere; }
