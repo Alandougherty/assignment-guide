@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.18.5
+
+- Display service-reported waiting status separately from tutor generation when
+  supported by the course service. Ignore malformed or stale optional progress.
+- Explain when a question remains saved after provider retry limits are reached.
+- Update the client version reported to the course service.
+
+Server retry scheduling and the extended test-host timeout remain opt-in trials.
+This client release does not enable them, expand student request retries or activate
+production record recovery. The 0.18.4 development checkpoint was not published.
+
 ## 0.18.3
 
 - Clarify that access requires a personal key for a participating HKU course.
