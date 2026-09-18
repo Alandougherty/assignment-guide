@@ -196,3 +196,15 @@ test("captured-file list uses literal paths and clears when the identity is clea
   assert.equal(view.get("captured-files").hidden, true);
   assert.equal(view.get("captured-paths").children.length, 0);
 });
+
+test("provider waiting is distinct from thinking and clears on generation or completion", () => {
+  const view = webview(); view.submit(); view.message({ type: "request-started" });
+  view.message({ type: "provider-progress", progress: { schema: 1, phase: "provider-wait", revision: 1, retryAt: "2026-09-18T03:00:00.000Z" } });
+  assert.equal(view.get("thinking-label").textContent, "Waiting for the model service…");
+  view.message({ type: "provider-progress", progress: { schema: 1, phase: "generating", revision: 2, retryAt: null } });
+  assert.equal(view.get("thinking-label").textContent, "Tutor is thinking…");
+  view.message({ type: "busy", value: false });
+  assert.equal(view.get("thinking-label").textContent, "");
+  view.message({ type: "provider-progress", progress: { phase: "provider-wait" } });
+  assert.equal(view.get("thinking-label").textContent, "");
+});

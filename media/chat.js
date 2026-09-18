@@ -178,7 +178,9 @@ function render(turns) {
     } else {
       const outcome = turn.attempts.at(-1)?.outcome;
       if (outcome?.error) {
-        const message = outcome.error === "provider-unavailable"
+        const message = ["provider-retry-exhausted", "provider-wait-limit"].includes(outcome.error)
+          ? "The model service is still unavailable. Your question is saved. Try again later."
+          : outcome.error === "provider-unavailable"
           ? "The tutor service was temporarily unavailable. Retry the original submission when ready."
           : outcome.error;
         tutorBubble.append(text("p", message));
@@ -260,6 +262,10 @@ window.addEventListener("message", event => {
       : state.phase === "failed" ? state.reason === "busy" ? "Course service is busy. Please try connecting again shortly." : "Could not connect to your course. Check the message below." : "";
   }
   if (message.type === "busy") lock(message.value);
+  if (message.type === "provider-progress" && busy && confirmed) {
+    const p = message.progress;
+    progress(p?.phase === "provider-wait" ? "Waiting for the model service…" : "Tutor is thinking…");
+  }
   if (message.type === "request-started" && busy && confirmed) {
     get("cancel").disabled = false;
     savedStatus(remote ? "Saved to the course service" : "Saved on this device");

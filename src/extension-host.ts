@@ -23,7 +23,7 @@ export type TestApi = {
   dispatch: (message: unknown) => Promise<void>;
   messages: Record<string, unknown>[];
   close: () => Promise<void>;
-  configureRemote: (endpoint: string | undefined, token?: string, recoveryEnabled?: boolean, archiveEnabled?: boolean) => Promise<void>;
+  configureRemote: (endpoint: string | undefined, token?: string, recoveryEnabled?: boolean, archiveEnabled?: boolean, providerThrottlingTrial?: boolean) => Promise<void>;
 };
 
 /** Shared host contract; no dependency on the development implementation. */
@@ -75,7 +75,7 @@ export async function activateHost(context: vscode.ExtensionContext, development
   let latestEditor = vscode.window.activeTextEditor;
   let opening = false;
   let previewClosed = async (): Promise<void> => { await vscode.window.showInformationMessage("Open the tutor and confirm your identity before previewing closure."); };
-  let testConnection: { endpoint: string; token: string; recoveryEnabled: boolean; archiveEnabled: boolean } | undefined;
+  let testConnection: { endpoint: string; token: string; recoveryEnabled: boolean; archiveEnabled: boolean; providerThrottlingTrial: boolean } | undefined;
   context.subscriptions.push(vscode.window.onDidChangeActiveTextEditor(editor => {
     if (editor) latestEditor = editor;
   }));
@@ -160,7 +160,7 @@ export async function activateHost(context: vscode.ExtensionContext, development
             protocolVersion: 2, archivePolicy: policy, token: testConnection?.token ?? "", allowLoopback: true, signal: AbortSignal.timeout(10_000) });
           await writeArchiveApproval(approvalDirectory, { schema_version: 1, origin: binding.origin, subject: binding.subject,
             course_id: binding.courseId, ...policy, notice_version: session.noticeVersion, approved_at: new Date().toISOString() });
-        }, guard: lease.check, onRequestStarted: started, allowLoopback: (!!testApi && !!testConnection) || !!localConnection, ...(localConnection ? { pollTimeoutMs: 120_000 } : {}) })
+        }, guard: lease.check, onRequestStarted: started, onProviderProgress: progress => { if (!disposed) post({ type: "provider-progress", progress }); }, allowLoopback: (!!testApi && !!testConnection) || !!localConnection, ...(testApi && testConnection?.providerThrottlingTrial ? { pollTimeoutMs: 190_000 } : localConnection ? { pollTimeoutMs: 120_000 } : {}) })
         : simulation!.tutor;
       const currentDefinition = (): AssignmentDefinition => {
         if (tutor instanceof RemoteTutor) {
@@ -548,12 +548,12 @@ export async function activateHost(context: vscode.ExtensionContext, development
 
     } finally { opening = false; }
   };
-  if (testApi) testApi.configureRemote = async (endpoint, token, recoveryEnabled = false, archiveEnabled = false) => {
+  if (testApi) testApi.configureRemote = async (endpoint, token, recoveryEnabled = false, archiveEnabled = false, providerThrottlingTrial = false) => {
     if (endpoint) {
       const url = new URL(endpoint);
       if (url.protocol !== "http:" || url.hostname !== "127.0.0.1" || url.pathname !== "/" || url.username || url.password || url.search || url.hash || !token) throw new Error("Host tests require a loopback synthetic service.");
       if (archiveEnabled && !recoveryEnabled) throw new Error("Archive trial requires explicit recovery enablement.");
-      testConnection = { endpoint, token, recoveryEnabled: recoveryEnabled === true, archiveEnabled: archiveEnabled === true };
+      testConnection = { endpoint, token, recoveryEnabled: recoveryEnabled === true, archiveEnabled: archiveEnabled === true, providerThrottlingTrial: providerThrottlingTrial === true };
     } else testConnection = undefined;
     if (sidebar) { startup = initialise(sidebar); await startup; }
   };

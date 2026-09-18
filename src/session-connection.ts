@@ -24,7 +24,7 @@ export function abortable<T>(promise: Promise<T>, signal: AbortSignal): Promise<
     promise.then(resolve, reject).finally(() => signal.removeEventListener("abort", abort));
   });
 }
-async function body(response: Response, limit: number, signal: AbortSignal): Promise<unknown> {
+export async function readConnectionJson(response: Response, limit: number, signal: AbortSignal): Promise<unknown> {
   const reader = response.body?.getReader(); if (!reader) throw new Error("Missing body");
   const chunks: Uint8Array[] = []; let bytes = 0;
   try {
@@ -35,14 +35,14 @@ async function body(response: Response, limit: number, signal: AbortSignal): Pro
     return parseRecoveryJson(new TextDecoder("utf-8", {fatal:true}).decode(Buffer.concat(chunks)));
   } finally { void reader.cancel().catch(() => undefined); }
 }
-function retryable(value: any): boolean {
+export function isIdentityRejection(value: any): boolean {
   return !!value && typeof value === "object" && !Array.isArray(value) &&
     Object.keys(value).sort().join() === "code,message,requestId,retryable,schema" && value.schema === 1 &&
     value.code === "identity-unavailable" && value.retryable === true &&
     typeof value.message === "string" && !!value.message.trim() && value.message.length <= 500 && !/[\x00-\x1f\x7f]/.test(value.message) &&
     typeof value.requestId === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(value.requestId);
 }
-async function sleep(ms: number, signal: AbortSignal): Promise<void> {
+export async function connectionSleep(ms: number, signal: AbortSignal): Promise<void> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   try { await abortable(new Promise<void>(resolve => { timer = setTimeout(resolve, ms); }), signal); }
   finally { clearTimeout(timer); }
@@ -74,10 +74,10 @@ export async function sessionGet(options: { endpoint:string; token:string; signa
         throw new SessionConnectionFailure(response.status === 401 ? "authentication" : response.status === 403 ? "forbidden" : "unavailable",response.status);
       }
       if (!json) { void response.body?.cancel().catch(() => undefined); throw new SessionConnectionFailure("invalid-response"); }
-      const value = await body(response, response.ok ? 1_048_576 : 4096, controller.signal);
+      const value = await readConnectionJson(response, response.ok ? 1_048_576 : 4096, controller.signal);
       checkSessionSignal(options.signal);
       if (response.ok) return value;
-      if (!retryable(value)) throw new SessionConnectionFailure("invalid-response",503);
+      if (!isIdentityRejection(value)) throw new SessionConnectionFailure("invalid-response",503);
       busy = true;
     } catch (error) {
       checkSessionSignal(options.signal);
@@ -88,7 +88,7 @@ export async function sessionGet(options: { endpoint:string; token:string; signa
     const base = 250 * 2 ** (attempt - 1), delayMs = base + Math.floor(Math.random() * (base + 1));
     if (delayMs >= deadline - performance.now()) break;
     reportSession(options.report,{phase:"waiting",attempt:attempt as 1|2|3,maxAttempts:4,delayMs});
-    await sleep(delayMs,options.signal);
+    await connectionSleep(delayMs,options.signal);
   }
   throw new SessionConnectionFailure("busy",503);
 }

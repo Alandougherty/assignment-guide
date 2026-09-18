@@ -1,3 +1,5 @@
+import { providerProgress, type ProviderProgress } from "./provider-progress";
+import { identityRequest, identityRetryPath, IdentityRequestUnavailable } from "./identity-request";
 import { CLIENT_USER_AGENT } from "./client-version";
 import { RecordIndex } from "./record-index";
 import { RecordCache } from "./record-cache";
@@ -23,7 +25,7 @@ type SavedEdit = { payload: EditEvent; receipt?: Receipt; fromService?: boolean 
 type RecordTurn = { recovery?: Record<string, RecoveryStamp>; schema: 1; sequence: number; submission: Submission; receipt?: Receipt; observations?: { payload: Observation; receipt?: Receipt }[]; editEvents?: SavedEdit[]; attempts: RemoteAttempt[] };
 type RecordSummary = { id: string; sequence: number; capturedAt: string; recoverySequence: number; digest: string };
 export type RemoteTurn = { recordedByService: boolean; submission: Submission & { id: string; ts: string }; attempts: { start: { attemptId: string }; outcome: { status: RemoteAttempt["state"]; reply: ModelReply | null; error: string | null }; editEvents: EditEvent[]; editStatus: EditEvent["kind"] | null; editPending: boolean }[] };
-export type RemoteOptions = { onSessionConnectionState?: (state: SessionConnectionState) => void; archivePolicyMode?: boolean; beforeArchiveActivity?: (session: Session) => Promise<void>; afterArchiveConfirmation?: (session: Session) => Promise<void>; recoveryQueue?: RecoveryQueue; directory: string; endpoint: string; token: string; assignment: AssignmentRef; allowLoopback?: boolean; requestTimeoutMs?: number; pollIntervalMs?: number; pollTimeoutMs?: number; guard?: () => void; onRequestStarted?: () => void };
+export type RemoteOptions = { onProviderProgress?: (progress: ProviderProgress | null) => void; preHandlerRetryTrial?: boolean; onSessionConnectionState?: (state: SessionConnectionState) => void; archivePolicyMode?: boolean; beforeArchiveActivity?: (session: Session) => Promise<void>; afterArchiveConfirmation?: (session: Session) => Promise<void>; recoveryQueue?: RecoveryQueue; directory: string; endpoint: string; token: string; assignment: AssignmentRef; allowLoopback?: boolean; requestTimeoutMs?: number; pollIntervalMs?: number; pollTimeoutMs?: number; guard?: () => void; onRequestStarted?: () => void };
 class CourseTransportError extends Error {}
 class RequestError extends Error { constructor(readonly status: number, expectedEndpoint?: string) { super(expectedEndpoint ? `This key belongs to another course endpoint. Set the course service URL to ${expectedEndpoint}, then run Assignment Guide: Connect to Course Service and enter your key again. Your existing local records are retained.` : `Course service request failed (${status}). Your original submission remains stored locally.`); } }
 async function readBoundedResponse(response: Response, limit: number): Promise<string> {
@@ -57,6 +59,7 @@ export class RemoteTutor {
   private readonly token: string;
   private connectionGeneration = 0;
   private closed = false;
+  private readonly identityRequestFlights = new Set<AbortController>();
   private unreadableRecords = 0;
   private recordCache = new RecordCache<RecordTurn>();
   private recordCacheSubject: string | undefined;
@@ -124,8 +127,26 @@ export class RemoteTutor {
     }
   }
   get busy(): boolean { return this.running; }
-  private async request(path: string, method = "GET", payload?: unknown): Promise<any> {
+  private async request(path: string, method = "GET", payload?: unknown, deadline?: number): Promise<any> {
     this.allowanceStale = true;
+    if (this.options.preHandlerRetryTrial && identityRetryPath(path, method)) {
+      if (this.closed || this.cancelled) throw new SessionConnectionCancelled();
+      const controller = new AbortController(); this.identityRequestFlights.add(controller);
+      try {
+        return await identityRequest({ url: this.endpoint + path, method, token: this.token,
+          body: payload === undefined ? undefined : JSON.stringify(payload), signal: controller.signal,
+          timeoutMs: this.options.requestTimeoutMs, deadline,
+          handle: async (response, signal) => {
+            if (!response.ok) throw await abortable(endpointError(response), signal);
+            if (response.headers.get("content-type")?.split(";")[0]?.trim().toLowerCase() !== "application/json") throw new Error("Invalid course service response.");
+            return parseRecoveryJson(await abortable(readBoundedResponse(response, 1_048_576), signal));
+          } });
+      } catch (error) {
+        if (error instanceof RequestError || error instanceof SessionConnectionCancelled) throw error;
+        if (error instanceof IdentityRequestUnavailable) { const unavailable = new RequestError(503); unavailable.message = error.message; throw unavailable; }
+        throw new CourseTransportError("The course service could not be reached or returned an invalid response. Keep the original request ID and reconnect.");
+      } finally { this.identityRequestFlights.delete(controller); }
+    }
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.options.requestTimeoutMs ?? 10_000);
     try {
@@ -256,6 +277,7 @@ export class RemoteTutor {
   decline(): void { this.confirmedIdentity = false; this.authoritativeAssignment = undefined; this.agreed = false; this.confirmed = false; this.cancel(); }
   cancelSessionConnection(): void {
     this.connectionGeneration++;
+    for (const controller of this.identityRequestFlights) controller.abort();
     const flight = this.sessionFlight; this.sessionFlight = undefined;
     if (flight) { flight.controller.abort(); reportSession(this.options.onSessionConnectionState, {phase:"cancelled"}); }
   }
@@ -449,7 +471,7 @@ export class RemoteTutor {
     return pending || (r.editEvents ?? []).some(e => !e.receipt && !e.fromService);
   }
   private async exclusive<T>(f: () => Promise<T>, editRecovery = false): Promise<T> { this.gate(editRecovery); if (this.running) throw new Error("Wait for the current request to finish."); this.running = true; this.cancelled = false;
-    try { if (this.options.archivePolicyMode && !editRecovery) await this.session(); return await f(); } finally { this.running = false; } }
+    try { if (this.options.archivePolicyMode && !editRecovery) await this.session(); return await f(); } finally { this.running = false; this.progressRevisions.clear(); this.reportProviderProgress(null); } }
   async submit(prompt: string, snapshot: Snapshot, _mode?: Mode, recorded?: () => void | Promise<void>): Promise<void> {
     if (!snapshot.workspace && !this.files.some(file => file.path === snapshot.path && file.language === snapshot.language)) throw new Error("Choose a file and language allowed by this assignment.");
     const s = validateSubmission({ schema: 1, submissionId: randomUUID(), sessionId: this.sessionId, capturedAt: new Date().toISOString(), assignment: { ...this.options.assignment }, prompt, snapshot: structuredClone(snapshot) });
@@ -476,11 +498,21 @@ export class RemoteTutor {
       o.receipt = receipt; await this.save(r);
     }
   }
+  private progressRevisions = new Map<string, number>();
+  private reportProviderProgress(value: ProviderProgress | null): void {
+    try { this.options.onProviderProgress?.(value); } catch { /* Display cannot alter request semantics. */ }
+  }
   private validateAttempt(a: any, sid: string, aid: string, local = false): RemoteAttempt {
     if (!a || (!local && (a.subject !== this.identity?.subject || a.submissionId !== sid || a.definitionDigest !== this.definitionDigest || a.assignment?.id !== this.options.assignment.id || a.assignment?.version !== this.options.assignment.version)) || a.attemptId !== aid || !/^[0-9a-f-]{36}$/.test(aid) ||
         !["queued", "running", "completed", "failed", "cancelled", "unknown"].includes(a.state) ||
         (a.error !== null && typeof a.error !== "string")) throw new Error("Invalid course service attempt response.");
     if (a.state === "completed") validateReply(a.result); else if (a.result !== null) throw new Error("Unexpected tutor result.");
+    if (!local) {
+      const progress = a.state === "running" ? providerProgress(a.providerProgress) : undefined;
+      if (progress && progress.revision > (this.progressRevisions.get(aid) ?? 0)) {
+        this.progressRevisions.set(aid, progress.revision); this.reportProviderProgress(progress);
+      } else if (!progress) this.reportProviderProgress(null);
+    }
     return { attemptId: aid, state: a.state, result: a.result, error: a.error };
   }
   private async deliver(r: RecordTurn, wait: boolean): Promise<void> {
@@ -521,16 +553,16 @@ export class RemoteTutor {
         }
         state = await this.request(path, "PUT", { schema: 1 }); }
       a = this.validateAttempt(state, sid, a.attemptId); r.attempts[i] = a; await this.save(r);
-      const until = Date.now() + (this.options.pollTimeoutMs ?? 45_000);
+      const until = performance.now() + (this.options.pollTimeoutMs ?? 45_000);
       while (wait && ["queued", "running"].includes(a.state)) {
         if (this.cancelled) {
           await this.observe(r, a.attemptId, "cancelled"); await this.observations(r);
           a = this.validateAttempt(await this.request(path + "/cancel", "POST", { schema: 1 }), sid, a.attemptId);
           r.attempts[i] = a; await this.save(r); break;
         }
-        if (Date.now() >= until) { await this.observe(r, a.attemptId, "timeout"); await this.observations(r); break; }
+        if (performance.now() >= until) { await this.observe(r, a.attemptId, "timeout"); await this.observations(r); break; }
         await new Promise(resolve => setTimeout(resolve, this.options.pollIntervalMs ?? 500));
-        const next = this.validateAttempt(await this.request(path), sid, a.attemptId);
+        const next = this.validateAttempt(await this.request(path, "GET", undefined, until), sid, a.attemptId);
         if (JSON.stringify(next) !== JSON.stringify(a)) { r.attempts[i] = next; await this.save(r); } a = next;
       }
     }

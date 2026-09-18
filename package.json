@@ -2,7 +2,7 @@
   "name": "assignment-guide",
   "displayName": "Assignment Guide",
   "description": "Understand your assignment. Develop your own solution. Step-by-step guidance for your coursework in VS Code.",
-  "version": "0.18.3",
+  "version": "0.18.5",
   "private": true,
   "publisher": "alandougherty",
   "engines": {
