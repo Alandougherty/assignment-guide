@@ -227,6 +227,8 @@ window.addEventListener("message", event => {
     get("token-allowance").hidden = !label;
   }
   if (message.type === "initial" || message.type === "off") {
+    get("captured-files").hidden = true; get("captured-paths").replaceChildren();
+    get("history-warning").textContent = ""; get("history-warning").hidden = true;
     get("token-allowance").textContent = "";
     get("token-allowance").title = "";
     get("token-allowance").hidden = true;
@@ -285,8 +287,19 @@ window.addEventListener("message", event => {
   }
   if (message.type === "confirmed") { get("consent").hidden = true; get("reconnect").hidden = true; sessionRequired = false; confirmed = true; get("composer").append(get("error")); get("identity").hidden = true; get("chat").hidden = false; }
   if (message.type === "off") { get("off-copy").textContent = message.wrongIdentity ? "Do not continue with someone else’s details. Ask your course team to check your access. The tutor is off; no questions or code have been submitted by this confirmation step." : "The tutor is off. You can reconsider below."; confirmed = false; resetSavingStatus(); get("reconnect").hidden = true; get("consent").hidden = true; get("identity").hidden = true; get("off").hidden = false; }
+  if (message.type === "recorded" && Array.isArray(message.capturedPaths)) {
+    get("captured-paths").replaceChildren();
+    for (const path of message.capturedPaths) {
+      const item = document.createElement("li"); item.textContent = path; get("captured-paths").append(item);
+    }
+    get("captured-files").hidden = false;
+  }
   if (message.type === "recorded") { awaitingLocalSave = false; get("prompt").value = ""; savedStatus(remote ? "Saved on this device · uploading…" : "Saved on this device"); }
-  if (message.type === "history") render(message.turns);
+  if (message.type === "history") {
+    render(message.turns);
+    get("history-warning").textContent = message.warning || "";
+    get("history-warning").hidden = !message.warning;
+  }
   if (message.type === "sync") get("sync-status").textContent = message.message;
   if (message.type === "error") {
     if (typeof message.submissionId === "string" && typeof message.attemptId === "string") {

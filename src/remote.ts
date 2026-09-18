@@ -1,3 +1,6 @@
+import { CLIENT_USER_AGENT } from "./client-version";
+import { RecordIndex } from "./record-index";
+import { RecordCache } from "./record-cache";
 import { checkSessionSignal, abortable, sessionGet, reportSession, SessionConnectionCancelled, SessionConnectionFailure, type SessionConnectionState } from "./session-connection";
 import { validateTokenAllowance, tokenAllowanceLabel, tokenAllowanceDetails, type TokenAllowance } from "./token-allowance";
 import { parseRecoveryJson } from "./recovery/json";
@@ -18,6 +21,7 @@ type Receipt = { schema: 1; subject: string; resourceId: string; payloadDigest: 
 type RemoteAttempt = { attemptId: string; state: "queued" | "running" | "completed" | "failed" | "cancelled" | "unknown"; result: ModelReply | null; error: string | null };
 type SavedEdit = { payload: EditEvent; receipt?: Receipt; fromService?: boolean };
 type RecordTurn = { recovery?: Record<string, RecoveryStamp>; schema: 1; sequence: number; submission: Submission; receipt?: Receipt; observations?: { payload: Observation; receipt?: Receipt }[]; editEvents?: SavedEdit[]; attempts: RemoteAttempt[] };
+type RecordSummary = { id: string; sequence: number; capturedAt: string; recoverySequence: number; digest: string };
 export type RemoteTurn = { recordedByService: boolean; submission: Submission & { id: string; ts: string }; attempts: { start: { attemptId: string }; outcome: { status: RemoteAttempt["state"]; reply: ModelReply | null; error: string | null }; editEvents: EditEvent[]; editStatus: EditEvent["kind"] | null; editPending: boolean }[] };
 export type RemoteOptions = { onSessionConnectionState?: (state: SessionConnectionState) => void; archivePolicyMode?: boolean; beforeArchiveActivity?: (session: Session) => Promise<void>; afterArchiveConfirmation?: (session: Session) => Promise<void>; recoveryQueue?: RecoveryQueue; directory: string; endpoint: string; token: string; assignment: AssignmentRef; allowLoopback?: boolean; requestTimeoutMs?: number; pollIntervalMs?: number; pollTimeoutMs?: number; guard?: () => void; onRequestStarted?: () => void };
 class CourseTransportError extends Error {}
@@ -53,6 +57,19 @@ export class RemoteTutor {
   private readonly token: string;
   private connectionGeneration = 0;
   private closed = false;
+  private unreadableRecords = 0;
+  private recordCache = new RecordCache<RecordTurn>();
+  private recordCacheSubject: string | undefined;
+  private recordIndex = this.newRecordIndex();
+  private newRecordIndex(): RecordIndex<RecordTurn, RecordSummary> {
+    return new RecordIndex(path => this.readRecord(path), r => ({
+      id: r.submission.submissionId, sequence: r.sequence, capturedAt: r.submission.capturedAt, digest: digest(r),
+      recoverySequence: Object.values(r.recovery ?? {}).reduce((max, stamp) => Math.max(max, stamp.client_sequence), 0),
+    }));
+  }
+  get historyWarning(): string {
+    return this.unreadableRecords ? "Some saved records could not be read. This history may be incomplete or out of date. Questions, retries and edits are paused to protect your work. Existing files have been kept; contact your teaching team for recovery." : "";
+  }
   private sessionFlight: { generation: number; controller: AbortController; promise: Promise<Session> } | undefined;
   private checkConnection(generation: number): void {
     if (this.closed || generation !== this.connectionGeneration) throw new SessionConnectionCancelled();
@@ -113,7 +130,7 @@ export class RemoteTutor {
     const timer = setTimeout(() => controller.abort(), this.options.requestTimeoutMs ?? 10_000);
     try {
       const response = await fetch(this.endpoint + path, { method, redirect: "error", signal: controller.signal,
-        headers: { ...(path === "/v1/session" && this.options.archivePolicyMode ? { "X-Record-Protocol": "2" } : {}), "User-Agent": "AssignmentTutorV2/0.3 (course-client)", Authorization: `Bearer ${this.token}`, ...(payload ? { "Content-Type": "application/json" } : {}) },
+        headers: { ...(path === "/v1/session" && this.options.archivePolicyMode ? { "X-Record-Protocol": "2" } : {}), "User-Agent": CLIENT_USER_AGENT, Authorization: `Bearer ${this.token}`, ...(payload ? { "Content-Type": "application/json" } : {}) },
         ...(payload ? { body: JSON.stringify(payload) } : {}) });
       if (!response.ok) throw await endpointError(response);
       if (!response.headers.get("content-type")?.startsWith("application/json")) throw new Error("Invalid course service response.");
@@ -261,12 +278,9 @@ export class RemoteTutor {
   private async bind(): Promise<void> {
     await this.write("binding.json", { schema: 1, endpoint: this.endpoint, subject: this.identity!.subject, assignment: this.options.assignment });
   }
-  private async records(): Promise<RecordTurn[]> {
-    this.gate(true); let names: string[];
-    try { names = await readdir(this.options.directory); } catch (e) { if ((e as NodeJS.ErrnoException).code === "ENOENT") return []; throw e; }
-    const latest = new Map<string, RecordTurn>();
-    for (const name of names.filter(n => n.endsWith(".json") && n !== "binding.json")) {
-      const r = JSON.parse(await readFile(join(this.options.directory, name), "utf8")) as RecordTurn;
+  private readRecord(path: string): Promise<RecordTurn> {
+    return this.recordCache.read(path, text => {
+      const r = parseRecoveryJson(text) as RecordTurn;
       validateSubmission(r.submission);
       if (r.schema !== 1 || !Number.isSafeInteger(r.sequence) || !Array.isArray(r.attempts)) throw new Error("Invalid local course record.");
       for (const a of r.attempts) this.validateAttempt(a, r.submission.submissionId, a.attemptId, true);
@@ -283,13 +297,50 @@ export class RemoteTutor {
         if (typeof r.recovery !== "object" || Array.isArray(r.recovery)) throw new Error("Invalid local recovery metadata.");
         for (const stamp of Object.values(r.recovery)) {
           if (!Number.isSafeInteger(stamp.client_sequence) || stamp.client_sequence < 1) throw new Error("Invalid local recovery sequence.");
-          this.recoverySequence = Math.max(this.recoverySequence, stamp.client_sequence);
         }
       }
-      this.sequence = Math.max(this.sequence, r.sequence);
-      if ((latest.get(r.submission.submissionId)?.sequence ?? -1) < r.sequence) latest.set(r.submission.submissionId, r);
+      return r;
+    });
+  }
+  private async records(allowIncomplete = false, limit?: number): Promise<RecordTurn[]> {
+    this.gate(true);
+    if (this.recordCacheSubject !== this.identity!.subject) {
+      this.recordCache = new RecordCache<RecordTurn>(); this.recordIndex = this.newRecordIndex();
+      this.recordCacheSubject = this.identity!.subject;
     }
-    return [...latest.values()].sort((a, b) => a.submission.capturedAt.localeCompare(b.submission.capturedAt));
+    let names: string[];
+    try { names = await readdir(this.options.directory); }
+    catch (e) { if ((e as NodeJS.ErrnoException).code === "ENOENT") { this.unreadableRecords = 0; return []; } throw e; }
+    const paths = names.filter(n => n.endsWith(".json") && n !== "binding.json").map(name => join(this.options.directory, name));
+    this.recordIndex.retain(new Set(paths));
+    const latest = new Map<string, { path: string; summary: RecordSummary }>();
+    let unreadable = 0;
+    const versions = new Map<string, string>();
+    for (const path of paths) {
+      try {
+        const summary = await this.recordIndex.inspect(path);
+        this.recoverySequence = Math.max(this.recoverySequence, summary.recoverySequence);
+        this.sequence = Math.max(this.sequence, summary.sequence);
+        const prior = latest.get(summary.id)?.summary;
+        const version = `${summary.id}/${summary.sequence}`;
+        if (versions.has(version) && versions.get(version) !== summary.digest) unreadable++;
+        versions.set(version, summary.digest);
+        if ((prior?.sequence ?? -1) < summary.sequence) latest.set(summary.id, { path, summary });
+      } catch { unreadable++; }
+    }
+    let selected = [...latest.values()].sort((a, b) => a.summary.capturedAt.localeCompare(b.summary.capturedAt));
+    if (limit !== undefined) selected = limit === 0 ? [] : selected.slice(-limit);
+    const records: RecordTurn[] = [];
+    for (const { path, summary } of selected) {
+      try {
+        const record = await this.readRecord(path);
+        if (record.sequence !== summary.sequence || record.submission.submissionId !== summary.id || record.submission.capturedAt !== summary.capturedAt || digest(record) !== summary.digest) throw new Error("Record changed during history read.");
+        records.push(structuredClone(record));
+      } catch { unreadable++; }
+    }
+    this.unreadableRecords = unreadable;
+    if (unreadable && !allowIncomplete) throw new Error(this.historyWarning);
+    return records;
   }
   private async save(r: RecordTurn): Promise<void> {
     const recovery = this.options.recoveryQueue ? recoveryEvents(r, () => ++this.recoverySequence) : [];
@@ -306,8 +357,9 @@ export class RemoteTutor {
     if (Object.keys(r.recovery ?? {}).length !== before) await this.save(r);
     else for (const event of events) await this.options.recoveryQueue.enqueue(event);
   }
-  async history(): Promise<RemoteTurn[]> {
-    return (await this.records()).map(r => ({ recordedByService: !!r.receipt, submission: { ...r.submission, id: r.submission.submissionId, ts: r.submission.capturedAt },
+  async history(limit?: number): Promise<RemoteTurn[]> {
+    if (limit !== undefined && (!Number.isSafeInteger(limit) || limit < 0)) throw new Error("Invalid history limit.");
+    return (await this.records(true, limit)).map(r => ({ recordedByService: !!r.receipt, submission: { ...r.submission, id: r.submission.submissionId, ts: r.submission.capturedAt },
       attempts: r.attempts.map(a => ({ start: { attemptId: a.attemptId }, outcome: { status: a.state, reply: a.result, error: a.error },
         editEvents: (r.editEvents ?? []).filter(e => e.payload.attemptId === a.attemptId).map(e => structuredClone(e.payload)),
         editStatus: this.editState(r, a.attemptId), editPending: (r.editEvents ?? []).some(e => e.payload.attemptId === a.attemptId && !e.receipt && !e.fromService) })) }));

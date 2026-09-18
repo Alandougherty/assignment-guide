@@ -94,3 +94,18 @@ If upgrading from a prototype, uninstall its older tutor extensions first.
 Older prototype extension IDs are not imported. Set up Assignment Guide with
 your personal course key. Ordinary reloads and future updates retain the new
 installation's settings and history.
+
+### Files recorded with a question
+
+After sending a new question, expand **Files included with your last question**
+below the send controls to see the captured file paths. This is the bundle recorded
+by the course service; the tutor may use only a selection of those files. The list
+is shown after local recording, not as an additional approval step before sending.
+
+### If saved history needs recovery
+
+If a saved record cannot be read, the tutor shows the readable history with an
+incomplete-history warning. Questions, retries and edit actions are paused to
+protect your work. You can export the readable conversation; that export also
+contains the warning. Contact your teaching team for recovery and keep the local
+records intact. Reinstalling or deleting storage is not a recovery procedure.

@@ -88,3 +88,21 @@ test("export writer creates private files, requires explicit overwrite and refus
     assert.equal(await readFile(source, "utf8"), "source");
   } finally { await rm(root, { recursive: true, force: true }); }
 });
+
+test("failed atomic export replacement preserves the previous export and cleans staging", async () => {
+  const fs = require("node:fs/promises") as typeof import("node:fs/promises");
+  const { mock } = await import("node:test");
+  const root = await mkdtemp(join(tmpdir(), "tutor-export-atomic-"));
+  const target = join(root, "tutor-chat-test.md");
+  try {
+    await writeChatExport(target, "Existing export");
+    const failure = mock.method(fs, "rename", async () => { throw new Error("Synthetic publication failure"); });
+    try { await assert.rejects(writeChatExport(target, "Replacement", true), /publication failure/); }
+    finally { failure.mock.restore(); }
+    assert.equal(await readFile(target, "utf8"), "Existing export");
+    assert.deepEqual(await fs.readdir(root), ["tutor-chat-test.md"]);
+    await writeChatExport(target, "Replacement", true);
+    assert.equal(await readFile(target, "utf8"), "Replacement");
+    assert.equal((await stat(target)).mode & 0o777, 0o600);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});

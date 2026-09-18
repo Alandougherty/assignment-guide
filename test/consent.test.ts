@@ -38,6 +38,11 @@ test("approval survives reopening, clears on decline and rejects corrupt local s
     assert.equal(await readConsent(directory, "b".repeat(64)), undefined);
     await writeFile(join(directory, connection + ".json"), "broken");
     assert.equal(await readConsent(directory, connection), undefined);
+    for (const value of [true, [], {}, { schema: 1 }, { schema: 2, fingerprint },
+      { schema: 1, fingerprint: "bad" }, { schema: 1, fingerprint, unexpected: true }]) {
+      await writeFile(join(directory, connection + ".json"), JSON.stringify(value));
+      assert.equal(await readConsent(directory, connection), undefined);
+    }
     await saveConsent(directory, connection, fingerprint);
     await saveConsent(directory, connection);
     assert.equal(await readConsent(directory, connection), undefined);

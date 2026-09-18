@@ -242,7 +242,10 @@ export async function activateHost(context: vscode.ExtensionContext, development
         if (!disposed) post({ type: "token-allowance", message: tutor instanceof RemoteTutor && tutor.canReadHistory ? tutor.allowanceLabel(stale) : "", details: tutor instanceof RemoteTutor && tutor.canReadHistory ? tutor.allowanceDetails() : "" });
       };
       const render = async () => {
-        if (tutor.ready || (tutor instanceof RemoteTutor && tutor.canReadHistory)) post({ type: "history", turns: (await tutor.history()).slice(-50) });
+        if (tutor.ready || (tutor instanceof RemoteTutor && tutor.canReadHistory)) {
+          const turns = tutor instanceof RemoteTutor ? await tutor.history(50) : await tutor.history();
+          post({ type: "history", turns: turns.slice(-50), warning: tutor instanceof RemoteTutor ? tutor.historyWarning : "" });
+        }
         showAllowance(processing);
       };
       const sync = async () => {
@@ -384,7 +387,7 @@ export async function activateHost(context: vscode.ExtensionContext, development
                 if (disposed) { tutor.cancel(); return; }
                 await recovery?.refresh();
                 if (disposed) { tutor.cancel(); return; }
-                post({ type: "recorded" }); await render();
+                post({ type: "recorded", capturedPaths: snapshot.workspace?.files.map(file => file.path) ?? [snapshot.path] }); await render();
               });
             }
             if (disposed) return;
@@ -448,7 +451,7 @@ export async function activateHost(context: vscode.ExtensionContext, development
           // Freeze a local snapshot before the dialog; a running reply may finish
           // independently and will appear in the next export.
           const markdown = formatChatExport({ assignment: { id: d.id, version: d.version, title: d.title }, studentIdentity: identity,
-            course: tutor instanceof RemoteTutor ? tutor.course : undefined, turns: await tutor.history(), exportedAt });
+            course: tutor instanceof RemoteTutor ? tutor.course : undefined, turns: await tutor.history(), historyWarning: tutor instanceof RemoteTutor ? tutor.historyWarning : undefined, exportedAt });
           const target = await vscode.window.showSaveDialog({ title: "Export chat · local records", saveLabel: "Export chat",
             defaultUri: vscode.Uri.file(join(assignment.root, chatExportFilename(d.id, exportedAt))), filters: { Markdown: ["md"] } });
           if (!target) { post({ type: "export-result", message: "Export cancelled." }); return; }
@@ -674,6 +677,7 @@ function html(webview: vscode.Webview, extension: vscode.Uri, remote = false): s
     <div id="session-connection" hidden><span id="session-connection-status" role="status" aria-live="polite"></span> <button id="cancel-connection" type="button">Cancel connection</button></div>
     <div class="export-toolbar"><button id="export-chat" type="button">Export chat</button><span id="export-status" role="status"></span></div>
     <button id="reconnect" type="button" hidden>Reconnect to course</button><p id="error" role="alert"></p>
+    <p id="history-warning" role="alert" hidden></p>
     ${conversationLoadingMarkup}
     <section id="consent" hidden><h2>Before you begin</h2>
       ${remote ? `<p>Understand your assignment. Develop your own solution.</p>
@@ -706,6 +710,7 @@ function html(webview: vscode.Webview, extension: vscode.Uri, remote = false): s
           <small id="token-allowance" role="status" aria-live="polite" tabindex="0" hidden></small>
         </div>
         <small id="saving-status" role="status" aria-live="polite"></small>
+        <details id="captured-files" hidden><summary>Files included with your last question</summary><p>These files were captured for the course record. The tutor may use a selection of them.</p><ul id="captured-paths"></ul></details>
       </form>
       <details id="diagnostics" hidden><summary>${remote ? "Service and recovery" : "Simulator checks"}</summary><div ${remote ? "hidden" : ""}>
         <label for="mode">Next attempt</label><select id="mode"><option value="normal">Normal response</option><option value="failure">Service failure</option><option value="timeout">Timeout</option><option value="malformed">Malformed response</option></select>

@@ -11,10 +11,14 @@ export function consentFingerprint(endpoint: string, session: Session, assignmen
     noticeVersion: session.noticeVersion, notice: session.notice, course: session.course ?? null,
     assignment, ...(session.subclass ? { subclass: session.subclass } : {}), archivePolicy: session.recovery?.archive_policy ?? null });
 }
+export function validConsent(saved: unknown): saved is { schema: 1; fingerprint: string } {
+  return typeof saved === "object" && saved !== null && !Array.isArray(saved) &&
+    Object.keys(saved).length === 2 && (saved as Record<string, unknown>).schema === 1 &&
+    typeof (saved as Record<string, unknown>).fingerprint === "string" &&
+    /^[a-f0-9]{64}$/.test((saved as Record<string, unknown>).fingerprint as string);
+}
 export function consentMatches(saved: unknown, fingerprint: string): boolean {
-  return typeof saved === "object" && saved !== null &&
-    (saved as Record<string, unknown>).schema === 1 &&
-    (saved as Record<string, unknown>).fingerprint === fingerprint;
+  return validConsent(saved) && saved.fingerprint === fingerprint;
 }
 
 function approvalPath(directory: string, connection: string): string {
@@ -22,7 +26,10 @@ function approvalPath(directory: string, connection: string): string {
   return join(directory, connection + ".json");
 }
 export async function readConsent(directory: string, connection: string): Promise<unknown> {
-  try { return JSON.parse(await readFile(approvalPath(directory, connection), "utf8")); }
+  try {
+    const saved: unknown = JSON.parse(await readFile(approvalPath(directory, connection), "utf8"));
+    return validConsent(saved) ? saved : undefined;
+  }
   catch { return undefined; } // Missing or unreadable approval always asks again.
 }
 export async function saveConsent(directory: string, connection: string, fingerprint?: string): Promise<void> {

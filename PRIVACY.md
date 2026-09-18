@@ -8,7 +8,8 @@ After you accept, submitted questions and bounded snapshots of eligible assignme
 files are recorded locally and sent to the course service. Snapshots can include
 unsaved editor contents. The service retains the captured bundle and may send your
 question, recent conversation and selected file contents to its AI provider.
-Responses, outcomes, proposed edits and your decisions about edits are also recorded.
+Responses, outcomes, proposed edits, your accept or reject decisions and the
+resulting editor file contents after an edit are also recorded.
 Unsent drafts are not recorded. Exported chats are ordinary files that you control.
 
 The extension excludes dotfiles, dependency folders and known credential files.
@@ -16,7 +17,12 @@ These exclusions cannot identify every secret: keep passwords and personal data
 out of coursework files. Git ignore rules do not control what the extension captures.
 
 Your personal course key is saved in VS Code SecretStorage. It is sent to the course
-service for authentication, not included in your chat export. Never post it in a
+service for authentication, not included in your chat export. After you have
+accepted the recording notice, reopening the tutor can automatically contact the
+course service with this key to check your identity, assignment and current notice
+and synchronise saved records. This can happen when VS Code restores the tutor
+view at startup. Changed identity, assignment or recording terms require renewed
+confirmation before new coursework can be submitted. Never post it in a
 public issue, screenshot or repository. The extension contains no AI provider key.
 
 Your course service's notice identifies its recording terms. Ask the teaching team

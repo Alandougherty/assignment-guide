@@ -1,3 +1,4 @@
+import { CLIENT_USER_AGENT } from "./client-version";
 import { parseRecoveryJson } from "./recovery/json";
 export type SessionConnectionState =
   | { phase: "connecting"; attempt: 1|2|3|4; maxAttempts: 4 }
@@ -62,7 +63,7 @@ export async function sessionGet(options: { endpoint:string; token:string; signa
     try {
       checkSessionSignal(options.signal);
       const response = await abortable(fetch(options.endpoint + "/v1/session", {method:"GET",redirect:"error",signal:controller.signal,
-        headers:{Authorization:`Bearer ${options.token}`, "User-Agent":"AssignmentTutorV2/0.3 (course-client)", ...(options.archive ? {"X-Record-Protocol":"2"} : {})}}), controller.signal);
+        headers:{Authorization:`Bearer ${options.token}`, "User-Agent":CLIENT_USER_AGENT, ...(options.archive ? {"X-Record-Protocol":"2"} : {})}}), controller.signal);
       const json = response.headers.get("content-type")?.split(";")[0]?.trim().toLowerCase() === "application/json";
       if (!response.ok && response.status !== 503) {
         if (response.status === 403 && options.forbiddenMessage) {

@@ -175,3 +175,24 @@ test("session connection feedback exposes cancellation before confirmation and s
   view.message({type:"session-connection",state:{phase:"failed",reason:"busy"}});
   assert.match(view.get("session-connection-status").textContent,/try connecting again/);
 });
+
+test("incomplete history warning survives ordinary request status and clears after a clean history", () => {
+  const view = webview();
+  view.message({ type: "history", turns: [], warning: "Incomplete local history" });
+  view.message({ type: "busy", value: true });
+  view.message({ type: "busy", value: false });
+  assert.equal(view.get("history-warning").textContent, "Incomplete local history");
+  assert.equal(view.get("history-warning").hidden, false);
+  view.history();
+  assert.equal(view.get("history-warning").hidden, true);
+});
+
+test("captured-file list uses literal paths and clears when the identity is cleared", () => {
+  const view = webview();
+  view.message({ type: "recorded", capturedPaths: ["main.py", "<example>.md"] });
+  assert.equal(view.get("captured-files").hidden, false);
+  assert.deepEqual(view.get("captured-paths").children.map(child => child.textContent), ["main.py", "<example>.md"]);
+  view.message({ type: "off" });
+  assert.equal(view.get("captured-files").hidden, true);
+  assert.equal(view.get("captured-paths").children.length, 0);
+});

@@ -4,7 +4,11 @@ const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const ts = require('typescript');
 const root = path.resolve(__dirname, '..');
-const stage = path.join(root, 'dist/student-extension');
+const uuidPath = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+const temporaryStage = uuidPath.test(root);
+const stage = temporaryStage ? fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'assignment-guide-package-')) : path.join(root, 'dist/student-extension');
+if (uuidPath.test(stage)) throw Error('Packaging needs a temporary directory without UUID-shaped path segments. Set TMPDIR accordingly.');
+try {
 fs.rmSync(stage, { recursive: true, force: true });
 fs.mkdirSync(stage, { recursive: true });
 const copied = new Set();
@@ -41,7 +45,7 @@ visit('out/src/student.js');
 for (const file of ['chat.css', 'chat.js', 'setup.js', 'tutor.svg']) copy('media/' + file);
 copy('README.md');
 copy('docs/student-guide.md');
-for (const file of ['LICENSE', 'PRIVACY.md']) if (fs.existsSync(path.join(root, file))) copy(file);
+for (const file of ['LICENSE', 'PRIVACY.md', 'CHANGELOG.md', 'SECURITY.md']) if (fs.existsSync(path.join(root, file))) copy(file);
 // Preserve complete dependency licence files. Only the Markdown browser asset is used.
 for (const file of ['dist/browser/markdown-it.umd.min.js', 'LICENSE', 'package.json']) copy('node_modules/markdown-it/' + file);
 const packages = new Set();
@@ -57,6 +61,18 @@ function dependency(name) {
 }
 dependency('proper-lockfile');
 dependency('markdown-it');
+// Browser bundles include dependency code even when individual packages are excluded.
+// Collect complete installed licence texts, including Markdown's dependency closure.
+let notices = 'Assignment Guide: third-party notices\n\nDependency licences apply to their respective components.\nThe Markdown browser bundle incorporates dependency code; notices are retained\neven where a dependency is not shipped as a separate package.\n';
+for (const name of [...packages].sort()) {
+  const directory = path.join(root, 'node_modules', name);
+  const metadata = JSON.parse(fs.readFileSync(path.join(directory, 'package.json')));
+  const licences = fs.readdirSync(directory).filter(file => /^(licen[cs]e|copying)([.-]|$)/i.test(file) && fs.statSync(path.join(directory, file)).isFile()).sort();
+  if (!licences.length) throw Error('Missing dependency licence: ' + name);
+  notices += `\n===== ${name}@${metadata.version} =====\n`;
+  for (const file of licences) notices += `\n${file}\n\n${fs.readFileSync(path.join(directory, file), 'utf8')}\n`;
+}
+fs.writeFileSync(path.join(stage, 'THIRD-PARTY-NOTICES.txt'), notices);
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json')));
 pkg.main = './out/src/student.js';
 const dev = new Set(['assignmentTutorV2.simulator', 'assignmentTutorV2.previewClosed', 'assignmentTutorV2.previewStudent', 'assignmentTutorV2.importConnection']);
@@ -80,8 +96,11 @@ node_modules/mdurl/**
 node_modules/punycode.js/**
 node_modules/uc.micro/**
 `);
+fs.mkdirSync(path.join(root, 'dist'), { recursive: true });
 const output = path.join(root, 'dist', `assignment-guide-${pkg.version}.vsix`);
 execFileSync(process.execPath, [path.join(root, 'node_modules/@vscode/vsce/vsce'), 'package', '--githubBranch', 'main', ...(pkg.license === 'UNLICENSED' ? ['--skip-license'] : []), '--out', output], { cwd: stage, stdio: 'inherit' });
 console.log(`Student build: ${copied.size} client modules; ${packages.size} Node dependency packages. ${output}`);
 
 execFileSync(process.execPath, [path.join(root, "scripts/check-student-package.cjs")], { cwd: root, stdio: "inherit" });
+
+} finally { if (temporaryStage) fs.rmSync(stage, { recursive: true, force: true }); }

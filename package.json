@@ -2,11 +2,12 @@
   "name": "assignment-guide",
   "displayName": "Assignment Guide",
   "description": "Understand your assignment. Develop your own solution. Step-by-step guidance for your coursework in VS Code.",
-  "version": "0.18.1",
+  "version": "0.18.3",
   "private": true,
   "publisher": "alandougherty",
   "engines": {
-    "vscode": "^1.106.0"
+    "vscode": "^1.106.0",
+    "node": ">=22"
   },
   "main": "./out/src/student.js",
   "activationEvents": [
@@ -82,5 +83,14 @@
   "homepage": "https://github.com/Alandougherty/assignment-guide",
   "bugs": {
     "url": "https://github.com/Alandougherty/assignment-guide/issues"
-  }
+  },
+  "categories": [
+    "Education"
+  ],
+  "keywords": [
+    "assignment",
+    "coursework",
+    "tutor",
+    "learning"
+  ]
 }

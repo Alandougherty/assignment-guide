@@ -1,6 +1,7 @@
+import { randomUUID } from "node:crypto";
 import { constants } from "node:fs";
-import { open, lstat } from "node:fs/promises";
-import { basename } from "node:path";
+import { open, lstat, link, rename, unlink } from "node:fs/promises";
+import { basename, dirname, join } from "node:path";
 import type { AssignmentRef, Turn } from "./domain";
 import type { RemoteTurn } from "./remote";
 
@@ -10,6 +11,7 @@ export type ChatExport = {
   course?: { id: string; title: string };
   turns: readonly (Turn | RemoteTurn)[];
   exportedAt: string;
+  historyWarning?: string;
 };
 const MAX_EXPORT_BYTES = 100 * 1024 * 1024;
 
@@ -35,6 +37,7 @@ export function formatChatExport(input: ChatExport): string {
     pieces.push(value);
   };
   append("# Assignment Guide conversation\n\nSource: locally saved records. This export may be incomplete, including conversations on other devices and outcomes not yet synchronised. It is not an officially verified submission.\n\n");
+  if (input.historyWarning) append("## Incomplete local history\n\n" + literal(input.historyWarning) + "\n");
   append("## Export details\n\n" + literal(`Assignment: ${input.assignment.title}\nAssignment ID: ${input.assignment.id}\nVersion: ${input.assignment.version}\nStudent identity: ${input.studentIdentity}\n${input.course ? `Course: ${input.course.title} (${input.course.id})\n` : ""}Exported at: ${timestamp(input.exportedAt)}\nSubmissions: ${input.turns.length}`));
   append("\nFile snapshots, proposed/applied file contents, credentials and internal diagnostics are not included. Prompt and reply text is reproduced literally. Attempt timestamps are included where available in local records.\n\n");
   input.turns.forEach((turn, index) => {
@@ -68,23 +71,33 @@ export function chatExportFilename(assignmentId: string, exportedAt: string): st
 export async function writeChatExport(path: string, markdown: string, overwrite = false): Promise<void> {
   if (!/^tutor-chat-[a-zA-Z0-9_-]+\.md$/.test(basename(path))) throw new Error("Use an export filename beginning tutor-chat- and ending .md, containing only letters, numbers, hyphens or underscores.");
   if (Buffer.byteLength(markdown) > MAX_EXPORT_BYTES) throw new Error("Chat export exceeds the 100 MiB limit.");
-  const flags = constants.O_WRONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK;
-  let file;
-  try { file = await open(path, flags | constants.O_CREAT | constants.O_EXCL, 0o600); }
-  catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== "EEXIST" || !overwrite) throw error;
-    const existing = await lstat(path);
+  let existing;
+  try { existing = await lstat(path); }
+  catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
+  if (existing) {
+    if (!overwrite) throw Object.assign(new Error("Export already exists."), { code: "EEXIST" });
     if (!existing.isFile() || existing.nlink !== 1) throw new Error("Export destination must be a regular file with no links.");
-    file = await open(path, flags);
-    const opened = await file.stat();
-    if (!opened.isFile() || opened.nlink !== 1 || opened.dev !== existing.dev || opened.ino !== existing.ino) {
-      await file.close(); throw new Error("Export destination changed. Choose another file.");
-    }
   }
+  const temporary = join(dirname(path), `.tutor-chat-${randomUUID()}.tmp`);
+  const file = await open(temporary, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, 0o600);
   try {
-    await file.chmod(0o600);
-    await file.truncate(0);
-    await file.writeFile(markdown, "utf8");
-    await file.sync();
-  } finally { await file.close(); }
+    try { await file.writeFile(markdown, "utf8"); await file.sync(); }
+    finally { await file.close(); }
+    if (existing) {
+      const current = await lstat(path);
+      if (!current.isFile() || current.nlink !== 1 || current.dev !== existing.dev || current.ino !== existing.ino ||
+          current.size !== existing.size || current.mtimeMs !== existing.mtimeMs || current.ctimeMs !== existing.ctimeMs) {
+        throw new Error("Export destination changed. Choose another file.");
+      }
+      await rename(temporary, path);
+    } else {
+      // Exclusive publication: never replace a file created after the Save As check.
+      await link(temporary, path);
+      await unlink(temporary);
+    }
+    if (process.platform !== "win32") {
+      const directory = await open(dirname(path), "r");
+      try { await directory.sync(); } finally { await directory.close(); }
+    }
+  } finally { await unlink(temporary).catch(error => { if (error.code !== "ENOENT") throw error; }); }
 }

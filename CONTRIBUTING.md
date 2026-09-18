@@ -2,9 +2,11 @@
 
 This repository is source-available under restricted-use terms, not an open-source
 licence. General reuse, modifications and redistribution require permission. Please
-contact the maintainer before submitting code contributions.
+do not submit code contributions until the rights holder has separately agreed
+permission to modify the code and the terms on which the contribution can be used.
+There is no standing contribution grant or agreement in this repository.
 
-Authorised maintainers can use Node.js 22 or later and npm:
+Maintainers with separate development/build permission can use Node.js 22 or later and npm:
 
 ```sh
 npm ci
@@ -53,3 +55,8 @@ experimental recovery activation remains disabled in the student entry point.
 The repository does not include a course server. Production identity, recording
 policy, retention and cohort capacity must be agreed with the course operator;
 passing client tests is not certification of a complete production service.
+
+Package verification runs automatically during `npm run package`. To rerun it on
+an existing VSIX, use `node scripts/check-student-package.cjs`; it does not build
+an artifact itself. The package contains generated THIRD-PARTY-NOTICES.txt with
+complete dependency notices, including code incorporated in the Markdown bundle.
