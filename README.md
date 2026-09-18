@@ -2,6 +2,8 @@
 
 *Understand your assignment. Develop your own solution.*
 
+**Course access required:** Assignment Guide is for students on participating HKU courses. You’ll need a personal course key supplied by your teaching team.
+
 Get step-by-step guidance on your programming assignments in VS Code. Ask questions
 about your code, work through problems with hints, and review suggested changes
 before applying them.
