@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.18.16
+
+- Exported chat now matches what the tutor panel shows you. Some of the service's
+  internal bookkeeping had been appearing in the Markdown alongside your
+  conversation, and it has been removed. Your questions, the tutor's replies, the
+  files attached to each question, the record of any change you accepted or
+  rejected, and the warnings about anything the service did not confirm are all
+  still there. Export an earlier chat again to get the tidier version.
+
 ## 0.18.15
 
 - Accepted changes now reach your file. About half of the changes students accepted
