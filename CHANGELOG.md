@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.19.1
+
+- Fixes connecting to the Assignment 2 course service after entering or changing your course key.
+
 ## 0.19.0
 
 - Adds the Assignment 2 tutor. Your conversation returns when you reconnect,
