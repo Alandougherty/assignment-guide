@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.19.2
+
+- Fixes a local storage check that prevented connecting to your course in recent VS Code versions. Connection failures remain visible in the panel.
+
 ## 0.19.1
 
 - Fixes connecting to the Assignment 2 course service after entering or changing your course key.
