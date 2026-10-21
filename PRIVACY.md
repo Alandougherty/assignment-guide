@@ -10,7 +10,8 @@ unsaved editor contents. The service retains the captured bundle and may send yo
 question, recent conversation and selected file contents to its AI provider.
 Responses, outcomes, proposed edits, your accept or reject decisions and the
 resulting editor file contents after an edit are also recorded.
-Unsent drafts are not recorded. Exported chats are ordinary files that you control.
+Unsent drafts are not sent to the course service. For Assignment 2, draft text is
+remembered in local VS Code workspace storage until sent or cleared. Exported chats are ordinary files that you control.
 
 The extension excludes dotfiles, dependency folders and known credential files.
 These exclusions cannot identify every secret: keep passwords and personal data
@@ -32,5 +33,5 @@ deletion of server records and should not be assumed to delete local history.
 
 Public GitHub issues are visible to everyone. Use only minimal synthetic examples;
 report concerns involving keys or identified coursework privately to your teaching
-team. Publishing this source does not authorise submission of real student data to
-a service that is still designated for testing.
+team. The public repository contains student documentation and release downloads; it
+does not contain extension source code.

@@ -69,8 +69,8 @@ Do not put secrets or personal information in assignment files. Local instructio
 files such as TUTOR.md and AGENTS.md do not override the course's teaching policy.
 
 Submitted questions, captured files, replies and edit decisions are recorded
-locally and by the course service, as described in its notice. Unsent drafts are
-not recorded. The saving status appears near the request controls. If your course
+locally and by the course service, as described in its notice. Drafts are not submitted to the course service. Assignment 2 remembers draft
+text locally until you send or clear it. The saving status appears near the request controls. If your course
 provides an allowance, the remaining tokens appear there too; hover for details.
 A last-known balance can be out of date.
 
@@ -78,12 +78,41 @@ A last-known balance can be out of date.
 
 Ask for a change in your question. If the tutor proposes an edit, select
 **Review change** to inspect the differences, then **Accept change** or
-**Reject change**. Accepted changes update your editor; save the file when ready.
+**Reject change**. Accepted changes update and save your file.
 If you have changed the file since the proposal, the tutor may refuse to apply it.
 Ask for a fresh proposal against your current work.
 
 You remain responsible for your work. AI replies can be wrong, and a proposed
 change is not evidence that tests passed.
+
+## Assignment 2 in 0.19.0
+
+Open the Assignment 2 folder supplied by your teacher. The tutor recognises the
+assignment from that folder; you can keep using your course key.
+
+Your saved conversation is restored from the course service when you reconnect,
+including on another computer. While offline, the panel shows its saved copy.
+A question saved offline is sent automatically when the connection returns.
+Draft text is remembered on this computer so you can return to it later.
+
+Use **Start over** to begin a new conversation after your current question has
+finished. Confirm the prompt to continue. Earlier conversations stay available
+to read and export, and starting over does not erase what you have shown the tutor.
+Use **Export chat** to save your conversations to `History.md`.
+
+Suggested changes appear beside the reply. Review the removed and added lines
+before choosing **Accept** or **Reject**. A warning appears before Accept if the
+change removes comments you wrote. A changed file can prevent a suggestion from
+being applied; ask again with your current code. The tutor does not run your code,
+so check and test your own work.
+
+The panel shows the course service's deadline and closure notices. When the
+assignment closes, you can still read and export your conversations. If the
+service reports that your question cannot be sent again, follow its message;
+otherwise **Send again** is available for an unanswered question.
+
+Assignment 1 keeps its existing conversation and export controls. The guidance
+below about diagnostics and failed-request markers describes that panel.
 
 ## Failed or interrupted requests
 

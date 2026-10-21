@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.19.0
+
+- Adds the Assignment 2 tutor. Your conversation returns when you reconnect,
+  saved questions wait for the connection to come back, and you can start a new
+  conversation while keeping earlier ones to read and export.
+- Review suggested changes before accepting them. Accepted changes are saved;
+  a warning appears if a suggestion removes comments you wrote.
+- Assignment 1 history remains available to read and export.
+
 ## 0.18.16
 
 - Exported chat now matches what the tutor panel shows you. Some of the service's

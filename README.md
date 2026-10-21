@@ -35,8 +35,16 @@ date; an unavailable balance means the service cannot give an exact count.
 
 Ask for an edit in your question. If the tutor proposes a change, choose
 **Review change** to inspect it, then **Accept change** or **Reject change**.
-Accepted changes update your editor; save them when you are ready. You remain
+Accepted changes update and save your file. You remain
 responsible for checking your work. AI guidance can be wrong.
+
+## Assignment 2
+
+Version 0.19.0 adds the Assignment 2 tutor. Open the assignment folder supplied
+by your teacher and use your course key. Your conversation returns when you
+reconnect. Questions saved while offline are sent when the connection returns.
+Use **Start over** for a new conversation; earlier conversations stay available
+to read and export. Assignment 1 history remains available too.
 
 ## Your questions and work
 
